@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Odyssey | Step Challenge</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>🏛️ THE ODYSSEY</h1>
+        <p>13 Teams. 3 Months. One Epic Journey.</p>
+
+        <div id="filter-container" class="controls-container" style="display: none;">
+            <label for="time-filter" style="margin-right: 10px;">Filter By:</label>
+            <select id="time-filter">
+                <option value="all">All-Time (Overall)</option>
+            </select>
+        </div>
+
+        <nav>
+            <button onclick="showPage('leaderboard')">Leaderboard</button>
+            <button onclick="showPage('deep-dive')">Team Deep Dive</button>
+        </nav>
+    </header>
+
+    <main id="leaderboard" class="page active">
+        
+        <div id="epic-journey-container" class="card" style="display:none; text-align: center;"></div>
+
+        <div class="dashboard-grid">
+            <div class="col-half">
+                <section class="card">
+                    <h2 id="team-title">🏆 Top 5 Teams</h2>
+                    <div id="top-teams-list">
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">Loading live data...</p>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <h2 id="member-title">👟 Top 5 Members</h2>
+                    <div id="top-members-list"></div>
+                </section>
+            </div>
+
+            <div class="col-half">
+                <section class="card" style="height: 100%;">
+                    <h2>📊 Analytics</h2>
+                    
+                    <div id="biggest-mover-container" style="display:none;"></div>
+
+                    <div id="leaderboard-chart-container" style="display: none; margin-top: 24px;">
+                        <canvas id="leaderboardChart"></canvas>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <main id="deep-dive" class="page" style="display: none;">
+        <select id="team-selector" style="margin-bottom: 24px; min-width: 250px;">
+            <option value="">Select a team...</option>
+        </select>
+        
+        <div class="dashboard-grid">
+            <div id="team-stats" class="col-half card">
+                <p style="color: var(--text-muted);">Select a team from the dropdown to see their stats.</p>
+            </div>
+
+            <div class="col-half">
+                <div id="chart-container" class="card" style="display: none;">
+                    <canvas id="teamChart"></canvas>
+                </div>
+                
+                <div id="member-chart-container" class="card" style="display: none;">
+                    <canvas id="memberChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

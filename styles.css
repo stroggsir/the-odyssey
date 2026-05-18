@@ -1,0 +1,166 @@
+/* Import Premium Tech Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --bg-color: #f4f6f8;
+    --surface: #ffffff;
+    --primary: #0a1128; /* Deep AusData Slate */
+    --accent: #2563eb;  /* Electric Tech Blue */
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --radius: 4px; /* Sharp corners */
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    line-height: 1.6;
+}
+
+/* Premium Header */
+header {
+    background-color: var(--primary);
+    color: #ffffff;
+    padding: 40px 20px;
+    text-align: center;
+    border-bottom: 4px solid var(--accent);
+}
+
+header h1 {
+    font-weight: 700;
+    font-size: 2.5rem;
+    letter-spacing: -0.5px;
+    margin-bottom: 5px;
+}
+
+header p {
+    color: #94a3b8;
+    font-weight: 300;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    margin-bottom: 30px;
+}
+
+/* File Upload & Dropdowns */
+.controls-container {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 15px 25px;
+    display: inline-block;
+    border-radius: var(--radius);
+    margin: 10px;
+}
+
+select, input[type="file"] {
+    background: var(--surface);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+select:focus {
+    border-color: var(--accent);
+}
+
+/* Navigation Tabs */
+nav {
+    margin-top: 30px;
+}
+
+nav button {
+    background-color: transparent;
+    color: #cbd5e1;
+    border: 2px solid transparent;
+    padding: 10px 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+nav button:hover {
+    color: #ffffff;
+}
+
+nav button.active, nav button:focus {
+    border-color: var(--accent);
+    color: #ffffff;
+    background: rgba(37, 99, 235, 0.1);
+}
+
+/* Layout & Cards */
+main {
+    max-width: 1400px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+.dashboard-grid {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.col-half {
+    flex: 1;
+    min-width: 320px;
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    margin-bottom: 24px;
+}
+
+h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+}
+
+/* Lists */
+ol, ul {
+    list-style-position: inside;
+}
+
+li {
+    padding: 12px 0;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+li:last-child {
+    border-bottom: none;
+}
+
+strong {
+    font-weight: 600;
+    color: var(--primary);
+}

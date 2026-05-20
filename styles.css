@@ -164,3 +164,18 @@ strong {
     font-weight: 600;
     color: var(--primary);
 }
+/* Custom Scrollbar for top 20 list */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #f1f5f9; 
+    border-radius: var(--radius);
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1; 
+    border-radius: var(--radius);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; 
+}

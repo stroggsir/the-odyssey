@@ -12,14 +12,19 @@ Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.color = "#64748b";
 
 // 1. Navigation
-function showPage(pageId) {
+function showPage(pageId, btnElement) {
     document.querySelectorAll('.page').forEach(page => page.style.display = 'none');
     document.getElementById(pageId).style.display = 'block';
+    
+    // Make the clicked tab look "active"
+    if(btnElement) {
+        document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('active'));
+        btnElement.classList.add('active');
+    }
 }
 
 // 2. AUTO-LOAD THE CSV FILE (No clicking required!)
 window.onload = function() {
-    // Papa.parse will look for a file exactly named "Consolidated.csv" in the same folder
     Papa.parse("Consolidated.csv", {
         download: true,
         header: true,
@@ -38,10 +43,6 @@ window.onload = function() {
     });
 };
 
-// --- LEAVE EVERYTHING BELOW THIS LINE EXACTLY AS IT IS IN YOUR CURRENT CODE ---
-// 3. Setup the Dropdown 
-// 4. Calculate Biggest Mover
-// ... etc.
 // 3. Setup the Dropdown 
 function setupFilters() {
     let filterSelect = document.getElementById('time-filter');
@@ -88,7 +89,7 @@ function setupFilters() {
     });
 }
 
-// 4. Calculate Biggest Mover (Friendly Text)
+// 4. Calculate Biggest Mover
 function calculateBiggestMover() {
     let weeks = [...new Set(allData.map(r => r["Week"]).filter(w => w !== null && w !== undefined))].sort((a,b)=>b-a);
     if (weeks.length < 2) return; 
@@ -143,7 +144,7 @@ function calculateBiggestMover() {
     }
 }
 
-// 5. Calculate Epic Journey (Friendly Text)
+// 5. Calculate Epic Journey 
 function calculateEpicJourney() {
     let totalSteps = 0;
     let uniqueWeeks = new Set();
@@ -219,13 +220,17 @@ function calculateEpicJourney() {
     container.style.display = 'block';
 }
 
-// 6. Crunch Numbers
+// 6. Crunch Numbers (Now Includes Ops Team Category)
 function processData() {
     teamAverages = {};
     let memberTotals = {};
     let memberCounts = {};
     let teamTotals = {};
     let teamCounts = {};
+    
+    // For Category tracking
+    let opsTeamTotals = {};
+    let opsTeamCounts = {};
 
     let filteredData = allData.filter(row => {
         if (currentFilter === 'all') return true;
@@ -238,16 +243,27 @@ function processData() {
         let team = row["Team"];
         let member = row["Name"];
         let steps = row["Average Weekly Step"] || 0;
+        let opsTeam = row["Ops Team"]; 
+        
         if (!team || !member) return; 
 
+        // Tally Members
         let memberKey = member + "|" + team;
         if (!memberTotals[memberKey]) { memberTotals[memberKey] = 0; memberCounts[memberKey] = 0; }
         memberTotals[memberKey] += steps;
         memberCounts[memberKey] += 1;
 
+        // Tally Teams
         if (!teamTotals[team]) { teamTotals[team] = 0; teamCounts[team] = 0; }
         teamTotals[team] += steps;
         teamCounts[team] += 1;
+        
+        // Tally Ops Team Categories
+        if (opsTeam) {
+            if (!opsTeamTotals[opsTeam]) { opsTeamTotals[opsTeam] = 0; opsTeamCounts[opsTeam] = 0; }
+            opsTeamTotals[opsTeam] += steps;
+            opsTeamCounts[opsTeam] += 1;
+        }
     });
 
     let teamList = [];
@@ -263,34 +279,44 @@ function processData() {
         let [name, team] = key.split("|");
         memberList.push({ name: name, team: team, steps: avg });
     }
+    
+    let opsTeamList = [];
+    for (let ot in opsTeamTotals) {
+        let avg = Math.round(opsTeamTotals[ot] / opsTeamCounts[ot]);
+        opsTeamList.push({ name: ot, avgSteps: avg });
+    }
 
     teamList.sort((a, b) => b.avgSteps - a.avgSteps);
     memberList.sort((a, b) => b.steps - a.steps);
+    opsTeamList.sort((a, b) => b.avgSteps - a.avgSteps);
 
     currentRankings = teamList; 
 
     let top5Teams = teamList.slice(0, 5);
-    displayLeaderboard(top5Teams, memberList.slice(0, 5));
+    
+    // Render the Dashboards
+    displayLeaderboard(top5Teams, memberList.slice(0, 20)); // Grabbing Top 20 now
+    displayCategoryLeaderboard(opsTeamList);
     populateTeamDropdown(teamList);
     
     calculateEpicJourney();
     renderLeaderboardChart(top5Teams);
 }
 
-// 7. Display Leaderboard
+// 7. Display Leaderboards
 function displayLeaderboard(teams, members) {
     let filterSelect = document.getElementById('time-filter');
     let filterText = filterSelect.options[filterSelect.selectedIndex].text;
     
     document.getElementById('team-title').innerText = `🏆 Top 5 Teams (${filterText})`;
-    document.getElementById('member-title').innerText = `👟 Top 5 Members (${filterText})`;
+    document.getElementById('member-title').innerText = `👟 Top 20 Members (${filterText})`;
 
     let teamsHTML = '<ol style="padding-left: 0; list-style: none;">';
     teams.forEach((t, index) => {
         let color = index === 0 ? "var(--accent)" : "var(--primary)";
         teamsHTML += `<li>
                         <span style="display:flex; align-items:center;">
-                            <span style="color: #94a3b8; width: 20px; font-size:0.8rem; font-weight:700;">0${index+1}</span>
+                            <span style="color: #94a3b8; width: 25px; font-size:0.8rem; font-weight:700;">0${index+1}</span>
                             <strong style="color: ${color};">${t.name}</strong>
                         </span>
                         <span style="font-weight: 500;">${t.avgSteps.toLocaleString()}</span>
@@ -301,12 +327,17 @@ function displayLeaderboard(teams, members) {
     if (teams.length === 0) teamsHTML = '<p>No data available.</p>';
     document.getElementById('top-teams-list').innerHTML = teamsHTML;
 
+    // Build the Top 20 Member List
     let membersHTML = '<ol style="padding-left: 0; list-style: none;">';
     members.forEach((m, index) => {
+        let rankStr = index + 1 < 10 ? '0' + (index + 1) : index + 1;
         membersHTML += `<li>
-                            <span style="display:flex; flex-direction:column;">
-                                <strong>${m.name}</strong> 
-                                <span style="font-size: 0.75rem; color: var(--text-muted); text-transform:uppercase;">${m.team}</span>
+                            <span style="display:flex; flex-direction:row; align-items: center;">
+                                <span style="color: #94a3b8; width: 25px; font-size:0.8rem; font-weight:700;">${rankStr}</span>
+                                <span style="display:flex; flex-direction:column;">
+                                    <strong>${m.name}</strong> 
+                                    <span style="font-size: 0.75rem; color: var(--text-muted); text-transform:uppercase;">${m.team}</span>
+                                </span>
                             </span>
                             <span style="font-weight: 500;">${m.steps.toLocaleString()}</span>
                         </li>`;
@@ -317,7 +348,32 @@ function displayLeaderboard(teams, members) {
     document.getElementById('top-members-list').innerHTML = membersHTML;
 }
 
-// 8. Render Top 5 Teams Chart
+// 8. Display New Category List
+function displayCategoryLeaderboard(opsTeams) {
+    let filterSelect = document.getElementById('time-filter');
+    let filterText = filterSelect.options[filterSelect.selectedIndex].text;
+    
+    document.getElementById('category-title').innerText = `🏢 Ops Team Leaderboard (${filterText})`;
+
+    let html = '<ol style="padding-left: 0; list-style: none;">';
+    opsTeams.forEach((t, index) => {
+        let color = index === 0 ? "var(--accent)" : "var(--primary)";
+        let rankStr = index + 1 < 10 ? '0' + (index + 1) : index + 1;
+        html += `<li>
+                    <span style="display:flex; align-items:center;">
+                        <span style="color: #94a3b8; width: 25px; font-size:0.8rem; font-weight:700;">${rankStr}</span>
+                        <strong style="color: ${color};">${t.name}</strong>
+                    </span>
+                    <span style="font-weight: 500;">${t.avgSteps.toLocaleString()}</span>
+                  </li>`;
+    });
+    html += '</ol>';
+    
+    if (opsTeams.length === 0) html = '<p style="text-align:center;">No data available.</p>';
+    document.getElementById('ops-team-list').innerHTML = html;
+}
+
+// 9. Render Top 5 Teams Chart
 function renderLeaderboardChart(top5Teams) {
     if (currentFilter.startsWith('week_')) {
         document.getElementById('leaderboard-chart-container').style.display = 'none';
@@ -396,7 +452,7 @@ function renderLeaderboardChart(top5Teams) {
     }
 }
 
-// 9. Setup Deep Dive Dropdown
+// 10. Setup Stats Dropdown
 function populateTeamDropdown(teams) {
     let select = document.getElementById('team-selector');
     let currentSelection = select.value; 
@@ -413,7 +469,7 @@ function populateTeamDropdown(teams) {
     }
 }
 
-// 10. Display Deep Dive Data (Friendly Text)
+// 11. Display Stats Data 
 function showTeamDeepDive(teamName) {
     let container = document.getElementById('team-stats');
     document.getElementById('chart-container').style.display = 'none';
@@ -510,7 +566,7 @@ function showTeamDeepDive(teamName) {
     renderMemberChart(teamName);
 }
 
-// 11. Draw Deep Dive Chart (Team Overall)
+// 12. Draw Stats Chart (Team Overall)
 function renderDeepDiveChart(teamName) {
     if (currentFilter.startsWith('week_')) return; 
 
@@ -566,7 +622,7 @@ function renderDeepDiveChart(teamName) {
     }
 }
 
-// 12. Draw Deep Dive Chart (Individual Members)
+// 13. Draw Stats Chart (Individual Members)
 function renderMemberChart(teamName) {
     if (currentFilter.startsWith('week_')) return; 
 

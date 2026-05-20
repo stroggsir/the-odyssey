@@ -21,8 +21,9 @@
         </div>
 
         <nav>
-            <button onclick="showPage('leaderboard')">Leaderboard</button>
-            <button onclick="showPage('deep-dive')">Team Deep Dive</button>
+            <button class="active" onclick="showPage('leaderboard', this)">Leaderboard</button>
+            <button onclick="showPage('category', this)">Category</button>
+            <button onclick="showPage('deep-dive', this)">Team Stats</button>
         </nav>
     </header>
 
@@ -40,8 +41,8 @@
                 </section>
 
                 <section class="card">
-                    <h2 id="member-title">👟 Top 5 Members</h2>
-                    <div id="top-members-list"></div>
+                    <h2 id="member-title">👟 Top 20 Members</h2>
+                    <div id="top-members-list" style="max-height: 380px; overflow-y: auto; padding-right: 10px;"></div>
                 </section>
             </div>
 
@@ -55,6 +56,15 @@
                         <canvas id="leaderboardChart"></canvas>
                     </div>
                 </section>
+            </div>
+        </div>
+    </main>
+
+    <main id="category" class="page" style="display: none;">
+        <div class="card" style="max-width: 600px; margin: 0 auto;">
+            <h2 id="category-title" style="text-align: center; border-bottom: none;">🏢 Ops Team Leaderboard</h2>
+            <div id="ops-team-list" style="margin-top: 15px;">
+                <p style="color: var(--text-muted); font-size: 0.9rem; text-align: center;">Loading live data...</p>
             </div>
         </div>
     </main>

@@ -14,7 +14,9 @@ Chart.defaults.color = "#64748b";
 // 1. Navigation
 function showPage(pageId, btnElement) {
     document.querySelectorAll('.page').forEach(page => page.style.display = 'none');
-    document.getElementById(pageId).style.display = 'block';
+    
+    let targetPage = document.getElementById(pageId);
+    if (targetPage) targetPage.style.display = 'block';
     
     // Make the clicked tab look "active"
     if(btnElement) {
@@ -23,24 +25,50 @@ function showPage(pageId, btnElement) {
     }
 }
 
-// 2. AUTO-LOAD THE CSV FILE (No clicking required!)
+// 2. AUTO-LOAD THE CSV FILE (Now with Global Data Cleaner!)
 window.onload = function() {
-    // The "?v=..." forces the browser to ALWAYS download the freshest CSV.
     let freshUrl = "Consolidated.csv?v=" + new Date().getTime();
+    
     Papa.parse(freshUrl, {
         download: true,
         header: true,
         dynamicTyping: true,
         skipEmptyLines: true,
         complete: function(results) {
-            allData = results.data;
+            // PRE-PROCESS AND CLEAN DATA ONCE globally
+            allData = [];
+            results.data.forEach(row => {
+                let cleanRow = {};
+                
+                // Clean header spaces (e.g. " Average Weekly Step " -> "Average Weekly Step")
+                for(let key in row) {
+                    if (key !== undefined && key !== null) {
+                        cleanRow[key.trim()] = row[key];
+                    }
+                }
+                
+                // Strip commas and spaces from numbers, and parse them properly
+                let rawSteps = cleanRow["Average Weekly Step"];
+                let steps = 0;
+                if (typeof rawSteps === 'string') {
+                    let parsed = parseFloat(rawSteps.replace(/,/g, '').trim());
+                    steps = isNaN(parsed) ? 0 : parsed;
+                } else if (typeof rawSteps === 'number') {
+                    steps = isNaN(rawSteps) ? 0 : rawSteps;
+                }
+                cleanRow["Average Weekly Step"] = steps;
+
+                allData.push(cleanRow);
+            });
+
             setupFilters();
             calculateBiggestMover(); 
             processData();
         },
         error: function(err) {
             console.error("Error reading CSV:", err);
-            document.getElementById('top-teams-list').innerHTML = "<p style='color: red;'>Could not load data. Is Consolidated.csv in the GitHub repository?</p>";
+            let teamList = document.getElementById('top-teams-list');
+            if (teamList) teamList.innerHTML = "<p style='color: red;'>Could not load data. Is Consolidated.csv in the GitHub repository?</p>";
         }
     });
 };
@@ -48,22 +76,18 @@ window.onload = function() {
 // 3. Setup the Dropdown 
 function setupFilters() {
     let filterSelect = document.getElementById('time-filter');
+    if (!filterSelect) return;
+    
     filterSelect.innerHTML = '<option value="all">All-Time (Overall)</option>';
     
     let phases = new Set();
     let weekMap = {};
 
     allData.forEach(row => {
-        // Clean keys just in case
-        let cleanRow = {};
-        for(let key in row) {
-            cleanRow[key.trim()] = row[key];
-        }
-
-        if (cleanRow["Phase"] !== undefined && cleanRow["Phase"] !== null) phases.add(String(cleanRow["Phase"]));
-        if (cleanRow["Week"] !== undefined && cleanRow["Week"] !== null) {
-            let weekStr = String(cleanRow["Week"]);
-            let dateStr = cleanRow["Dates"] ? String(cleanRow["Dates"]) : "";
+        if (row["Phase"] !== undefined && row["Phase"] !== null) phases.add(String(row["Phase"]));
+        if (row["Week"] !== undefined && row["Week"] !== null) {
+            let weekStr = String(row["Week"]);
+            let dateStr = row["Dates"] ? String(row["Dates"]) : "";
             weekMap[weekStr] = dateStr; 
         }
     });
@@ -87,27 +111,20 @@ function setupFilters() {
         filterSelect.appendChild(optgroup);
     }
 
-    document.getElementById('filter-container').style.display = 'inline-block';
+    let filterContainer = document.getElementById('filter-container');
+    if (filterContainer) filterContainer.style.display = 'inline-block';
 
     filterSelect.addEventListener('change', function(e) {
         currentFilter = e.target.value;
         processData();
-        let selectedTeam = document.getElementById('team-selector').value;
-        if (selectedTeam) showTeamDeepDive(selectedTeam);
+        let selectedTeam = document.getElementById('team-selector');
+        if (selectedTeam && selectedTeam.value) showTeamDeepDive(selectedTeam.value);
     });
 }
 
-// 4. Calculate Biggest Mover (Friendly Text)
+// 4. Calculate Biggest Mover 
 function calculateBiggestMover() {
-    let weeks = [];
-    
-    allData.forEach(row => {
-        let cleanRow = {};
-        for(let key in row) cleanRow[key.trim()] = row[key];
-        if(cleanRow["Week"] !== null && cleanRow["Week"] !== undefined) weeks.push(cleanRow["Week"]);
-    });
-    
-    weeks = [...new Set(weeks)].sort((a,b)=>b-a);
+    let weeks = [...new Set(allData.map(r => r["Week"]).filter(w => w !== null && w !== undefined))].sort((a,b)=>b-a);
     if (weeks.length < 2) return; 
 
     let latestWeek = weeks[0];
@@ -115,12 +132,9 @@ function calculateBiggestMover() {
     let teamWeeklyAvgs = {};
 
     allData.forEach(row => {
-        let cleanRow = {};
-        for(let key in row) cleanRow[key.trim()] = row[key];
-
-        let w = cleanRow["Week"];
-        let t = cleanRow["Team"];
-        let s = cleanRow["Average Weekly Step"] || 0;
+        let w = row["Week"];
+        let t = row["Team"];
+        let s = row["Average Weekly Step"] || 0;
         if (!t || (w !== latestWeek && w !== prevWeek)) return;
 
         if (!teamWeeklyAvgs[t]) teamWeeklyAvgs[t] = { latest: { sum: 0, count: 0 }, prev: { sum: 0, count: 0 } };
@@ -153,27 +167,26 @@ function calculateBiggestMover() {
 
     if (mostImprovedTeam) {
         let container = document.getElementById('biggest-mover-container');
-        container.innerHTML = `
-            <div style="border-left: 4px solid var(--accent); padding: 16px; background: #f8fafc; text-align: left;">
-                <p style="font-size: 0.75rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">🚀 Weekly Spotlight</p>
-                <p style="color: var(--primary); font-size: 1.05rem;"><strong>${mostImprovedTeam}</strong> is the Most Improved Team (+${Math.round(biggestJump).toLocaleString()} steps from last week!)</p>
-            </div>
-        `;
-        container.style.display = 'block';
+        if (container) {
+            container.innerHTML = `
+                <div style="border-left: 4px solid var(--accent); padding: 16px; background: #f8fafc; text-align: left;">
+                    <p style="font-size: 0.75rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">🚀 Weekly Spotlight</p>
+                    <p style="color: var(--primary); font-size: 1.05rem;"><strong>${mostImprovedTeam}</strong> is the Most Improved Team (+${Math.round(biggestJump).toLocaleString()} steps from last week!)</p>
+                </div>
+            `;
+            container.style.display = 'block';
+        }
     }
 }
 
-// 5. Calculate Epic Journey (Visually Spaced)
+// 5. Calculate Epic Journey
 function calculateEpicJourney() {
     let totalSteps = 0;
     let uniqueWeeks = new Set();
 
     allData.forEach(row => {
-        let cleanRow = {};
-        for(let key in row) cleanRow[key.trim()] = row[key];
-
-        totalSteps += (cleanRow["Average Weekly Step"] || 0);
-        if (cleanRow["Week"]) uniqueWeeks.add(cleanRow["Week"]);
+        totalSteps += (row["Average Weekly Step"] || 0);
+        if (row["Week"]) uniqueWeeks.add(row["Week"]);
     });
 
     if (totalSteps === 0 || uniqueWeeks.size === 0) return;
@@ -183,7 +196,6 @@ function calculateEpicJourney() {
     let avgKmPerWeek = currentKm / weeksCompleted;
     let projectedFinalKm = avgKmPerWeek * 14; 
 
-    // Define all milestones (Manila added as starting point)
     const globalMilestones = [
         { name: "Manila 🇵🇭", km: 0 },
         { name: "Cebu 🏝️", km: 570 },
@@ -197,7 +209,6 @@ function calculateEpicJourney() {
 
     let finalTarget = globalMilestones[globalMilestones.length - 1];
     
-    // Calculate projected destination text
     let projectedTarget = globalMilestones[globalMilestones.length - 1]; 
     for (let i = 0; i < globalMilestones.length; i++) {
         if (globalMilestones[i].km > projectedFinalKm) {
@@ -206,14 +217,12 @@ function calculateEpicJourney() {
         }
     }
 
-    // --- SMART SEGMENT SCALING ---
     let currentPercentage = 0;
-    let spacing = 100 / (globalMilestones.length - 1); // Spaces dots evenly (14.28% apart)
+    let spacing = 100 / (globalMilestones.length - 1); 
 
     if (currentKm >= finalTarget.km) {
         currentPercentage = 100;
     } else {
-        // Find current leg of the journey
         let currentIndex = 0;
         for (let i = 0; i < globalMilestones.length - 1; i++) {
             if (currentKm >= globalMilestones[i].km && currentKm < globalMilestones[i + 1].km) {
@@ -224,11 +233,7 @@ function calculateEpicJourney() {
 
         let prevM = globalMilestones[currentIndex];
         let nextM = globalMilestones[currentIndex + 1];
-        
-        // Calculate progress inside this specific leg (0.0 to 1.0)
         let segmentProgress = (currentKm - prevM.km) / (nextM.km - prevM.km);
-        
-        // Base % + Segment %
         currentPercentage = (currentIndex * spacing) + (segmentProgress * spacing);
     }
 
@@ -251,7 +256,6 @@ function calculateEpicJourney() {
         let textColor = isPassed ? 'var(--primary)' : '#94a3b8';
         let fontWeight = isPassed ? '700' : '600';
         
-        // Stagger labels Top and Bottom to prevent overlapping
         let isTop = index % 2 === 0; 
         let verticalPos = isTop ? 'top: -32px;' : 'top: 36px;';
         
@@ -261,7 +265,6 @@ function calculateEpicJourney() {
 
         let labelHtml = `<span style="font-size: 0.7rem; font-weight: ${fontWeight}; color: ${textColor}; letter-spacing: 0.2px; white-space: nowrap;">${m.name}</span>`;
 
-        // Keep start and end labels from bleeding off the edge of the screen
         let transform = 'translateX(-50%)';
         let leftPos = `${mPercent}%`;
         if (index === 0) { transform = 'translateX(0%)'; leftPos = '0%'; }
@@ -280,43 +283,34 @@ function calculateEpicJourney() {
     `;
 
     let container = document.getElementById('epic-journey-container');
-    container.innerHTML = html;
-    container.style.display = 'block';
+    if (container) {
+        container.innerHTML = html;
+        container.style.display = 'block';
+    }
 }
 
-// 6. Crunch Numbers (Now Includes Ops Team Category)
+// 6. Crunch Numbers 
 function processData() {
     teamAverages = {};
     let memberTotals = {};
     let memberCounts = {};
     let teamTotals = {};
     let teamCounts = {};
-    
-    // For Category tracking
     let opsTeamTotals = {};
     let opsTeamCounts = {};
 
     let filteredData = allData.filter(row => {
-        let cleanRow = {};
-        for(let key in row) cleanRow[key.trim()] = row[key];
-
         if (currentFilter === 'all') return true;
-        if (currentFilter.startsWith('phase_')) return String(cleanRow["Phase"]) === currentFilter.replace('phase_', '');
-        if (currentFilter.startsWith('week_')) return String(cleanRow["Week"]) === currentFilter.replace('week_', '');
+        if (currentFilter.startsWith('phase_')) return String(row["Phase"]) === currentFilter.replace('phase_', '');
+        if (currentFilter.startsWith('week_')) return String(row["Week"]) === currentFilter.replace('week_', '');
         return true;
     });
 
     filteredData.forEach(row => {
-        // Strip hidden spaces from headers before processing
-        let cleanRow = {};
-        for(let key in row) {
-            cleanRow[key.trim()] = row[key];
-        }
-
-        let team = cleanRow["Team"];
-        let member = cleanRow["Name"];
-        let steps = cleanRow["Average Weekly Step"] || 0;
-        let opsTeam = cleanRow["Ops Team"]; 
+        let team = row["Team"];
+        let member = row["Name"];
+        let steps = row["Average Weekly Step"] || 0;
+        let opsTeam = row["Ops Team"]; 
         
         if (!team || !member) return; 
 
@@ -364,14 +358,12 @@ function processData() {
     opsTeamList.sort((a, b) => b.avgSteps - a.avgSteps);
 
     currentRankings = teamList; 
-
     let top5Teams = teamList.slice(0, 5);
     
-    // Render the Dashboards
-    displayLeaderboard(top5Teams, memberList.slice(0, 20)); // Grabbing Top 20 now
+    // Render the Dashboards safely
+    displayLeaderboard(top5Teams, memberList.slice(0, 20)); 
     displayCategoryLeaderboard(opsTeamList);
     populateTeamDropdown(teamList);
-    
     calculateEpicJourney();
     renderLeaderboardChart(top5Teams);
 }
@@ -379,10 +371,13 @@ function processData() {
 // 7. Display Leaderboards
 function displayLeaderboard(teams, members) {
     let filterSelect = document.getElementById('time-filter');
-    let filterText = filterSelect.options[filterSelect.selectedIndex].text;
+    let filterText = filterSelect ? filterSelect.options[filterSelect.selectedIndex].text : '';
     
-    document.getElementById('team-title').innerText = `🏆 Top 5 Teams (${filterText})`;
-    document.getElementById('member-title').innerText = `👟 Top 20 Members (${filterText})`;
+    let tTitle = document.getElementById('team-title');
+    if (tTitle) tTitle.innerText = `🏆 Top 5 Teams (${filterText})`;
+    
+    let mTitle = document.getElementById('member-title');
+    if (mTitle) mTitle.innerText = `👟 Top 20 Members (${filterText})`;
 
     let teamsHTML = '<ol style="padding-left: 0; list-style: none;">';
     teams.forEach((t, index) => {
@@ -398,7 +393,9 @@ function displayLeaderboard(teams, members) {
     teamsHTML += '</ol>';
     
     if (teams.length === 0) teamsHTML = '<p>No data available.</p>';
-    document.getElementById('top-teams-list').innerHTML = teamsHTML;
+    
+    let tList = document.getElementById('top-teams-list');
+    if (tList) tList.innerHTML = teamsHTML;
 
     // Build the Top 20 Member List
     let membersHTML = '<ol style="padding-left: 0; list-style: none;">';
@@ -418,15 +415,22 @@ function displayLeaderboard(teams, members) {
     membersHTML += '</ol>';
     
     if (members.length === 0) membersHTML = '<p>No data available.</p>';
-    document.getElementById('top-members-list').innerHTML = membersHTML;
+    
+    let mList = document.getElementById('top-members-list');
+    if (mList) mList.innerHTML = membersHTML;
 }
 
 // 8. Display New Category List
 function displayCategoryLeaderboard(opsTeams) {
-    let filterSelect = document.getElementById('time-filter');
-    let filterText = filterSelect.options[filterSelect.selectedIndex].text;
+    let titleEl = document.getElementById('category-title');
+    let listEl = document.getElementById('ops-team-list');
     
-    document.getElementById('category-title').innerText = `🏢 Ops Team Leaderboard (${filterText})`;
+    if (!titleEl || !listEl) return;
+
+    let filterSelect = document.getElementById('time-filter');
+    let filterText = filterSelect ? filterSelect.options[filterSelect.selectedIndex].text : '';
+    
+    titleEl.innerText = `🏢 Ops Team Leaderboard (${filterText})`;
 
     let html = '<ol style="padding-left: 0; list-style: none;">';
     opsTeams.forEach((t, index) => {
@@ -443,13 +447,17 @@ function displayCategoryLeaderboard(opsTeams) {
     html += '</ol>';
     
     if (opsTeams.length === 0) html = '<p style="text-align:center;">No data available.</p>';
-    document.getElementById('ops-team-list').innerHTML = html;
+    listEl.innerHTML = html;
 }
 
 // 9. Render Top 5 Teams Chart
 function renderLeaderboardChart(top5Teams) {
+    let container = document.getElementById('leaderboard-chart-container');
+    let canvas = document.getElementById('leaderboardChart');
+    if (!container || !canvas) return;
+
     if (currentFilter.startsWith('week_')) {
-        document.getElementById('leaderboard-chart-container').style.display = 'none';
+        container.style.display = 'none';
         return;
     }
 
@@ -462,17 +470,14 @@ function renderLeaderboardChart(top5Teams) {
     topTeamNames.forEach(name => teamDataByWeek[name] = {});
 
     allData.forEach(row => {
-        let cleanRow = {};
-        for(let key in row) cleanRow[key.trim()] = row[key];
+        let team = row["Team"];
+        if (topTeamNames.includes(team) && row["Week"]) {
+            if (currentFilter.startsWith('phase_') && String(row["Phase"]) !== currentFilter.replace('phase_', '')) return;
 
-        let team = cleanRow["Team"];
-        if (topTeamNames.includes(team) && cleanRow["Week"]) {
-            if (currentFilter.startsWith('phase_') && String(cleanRow["Phase"]) !== currentFilter.replace('phase_', '')) return;
-
-            let w = cleanRow["Week"];
+            let w = row["Week"];
             allWeeks.add(w);
             if (!teamDataByWeek[team][w]) teamDataByWeek[team][w] = { sum: 0, count: 0 };
-            teamDataByWeek[team][w].sum += (cleanRow["Average Weekly Step"] || 0);
+            teamDataByWeek[team][w].sum += (row["Average Weekly Step"] || 0);
             teamDataByWeek[team][w].count += 1;
         }
     });
@@ -506,8 +511,8 @@ function renderLeaderboardChart(top5Teams) {
     });
 
     if (labels.length > 1) { 
-        document.getElementById('leaderboard-chart-container').style.display = 'block';
-        let ctx = document.getElementById('leaderboardChart').getContext('2d');
+        container.style.display = 'block';
+        let ctx = canvas.getContext('2d');
 
         if (leaderboardChartInstance) leaderboardChartInstance.destroy();
 
@@ -531,6 +536,8 @@ function renderLeaderboardChart(top5Teams) {
 // 10. Setup Stats Dropdown
 function populateTeamDropdown(teams) {
     let select = document.getElementById('team-selector');
+    if (!select) return;
+
     let currentSelection = select.value; 
     
     select.innerHTML = '<option value="">Select a team...</option>';
@@ -548,8 +555,13 @@ function populateTeamDropdown(teams) {
 // 11. Display Stats Data 
 function showTeamDeepDive(teamName) {
     let container = document.getElementById('team-stats');
-    document.getElementById('chart-container').style.display = 'none';
-    document.getElementById('member-chart-container').style.display = 'none';
+    let chartContainer = document.getElementById('chart-container');
+    let memberChartContainer = document.getElementById('member-chart-container');
+    
+    if (!container) return;
+    
+    if (chartContainer) chartContainer.style.display = 'none';
+    if (memberChartContainer) memberChartContainer.style.display = 'none';
 
     if (!teamName) {
         container.innerHTML = '<p style="color: var(--text-muted);">Select a team from the dropdown to see their stats.</p>';
@@ -560,23 +572,20 @@ function showTeamDeepDive(teamName) {
     let teamMembers = [];
     
     allData.forEach(row => {
-        let cleanRow = {};
-        for(let key in row) cleanRow[key.trim()] = row[key];
-
-        let isRightTeam = cleanRow["Team"] === teamName;
+        let isRightTeam = row["Team"] === teamName;
         let isRightTime = false;
         
         if (currentFilter === 'all') isRightTime = true;
-        else if (currentFilter.startsWith('phase_')) isRightTime = String(cleanRow["Phase"]) === currentFilter.replace('phase_', '');
-        else if (currentFilter.startsWith('week_')) isRightTime = String(cleanRow["Week"]) === currentFilter.replace('week_', '');
+        else if (currentFilter.startsWith('phase_')) isRightTime = String(row["Phase"]) === currentFilter.replace('phase_', '');
+        else if (currentFilter.startsWith('week_')) isRightTime = String(row["Week"]) === currentFilter.replace('week_', '');
         
         if (isRightTeam && isRightTime) {
-            let existing = teamMembers.find(m => m.name === cleanRow["Name"]);
+            let existing = teamMembers.find(m => m.name === row["Name"]);
             if (existing) {
-                existing.totalSteps += (cleanRow["Average Weekly Step"] || 0);
+                existing.totalSteps += (row["Average Weekly Step"] || 0);
                 existing.count += 1;
             } else {
-                teamMembers.push({ name: cleanRow["Name"], totalSteps: (cleanRow["Average Weekly Step"] || 0), count: 1 });
+                teamMembers.push({ name: row["Name"], totalSteps: (row["Average Weekly Step"] || 0), count: 1 });
             }
         }
     });
@@ -651,15 +660,12 @@ function renderDeepDiveChart(teamName) {
 
     let weekData = {};
     allData.forEach(row => {
-        let cleanRow = {};
-        for(let key in row) cleanRow[key.trim()] = row[key];
+        if (row["Team"] === teamName && row["Week"]) {
+            if (currentFilter.startsWith('phase_') && String(row["Phase"]) !== currentFilter.replace('phase_', '')) return;
 
-        if (cleanRow["Team"] === teamName && cleanRow["Week"]) {
-            if (currentFilter.startsWith('phase_') && String(cleanRow["Phase"]) !== currentFilter.replace('phase_', '')) return;
-
-            let w = cleanRow["Week"];
+            let w = row["Week"];
             if (!weekData[w]) weekData[w] = { sum: 0, count: 0 };
-            weekData[w].sum += (cleanRow["Average Weekly Step"] || 0);
+            weekData[w].sum += (row["Average Weekly Step"] || 0);
             weekData[w].count += 1;
         }
     });
@@ -672,9 +678,13 @@ function renderDeepDiveChart(teamName) {
         dataPoints.push(Math.round(weekData[w].sum / weekData[w].count));
     });
 
+    let container = document.getElementById('chart-container');
+    let canvas = document.getElementById('teamChart');
+    if (!container || !canvas) return;
+
     if (labels.length > 1) { 
-        document.getElementById('chart-container').style.display = 'block';
-        let ctx = document.getElementById('teamChart').getContext('2d');
+        container.style.display = 'block';
+        let ctx = canvas.getContext('2d');
 
         if (teamChartInstance) teamChartInstance.destroy();
 
@@ -713,14 +723,11 @@ function renderMemberChart(teamName) {
     let teamMembers = new Set();
 
     allData.forEach(row => {
-        let cleanRow = {};
-        for(let key in row) cleanRow[key.trim()] = row[key];
+        if (row["Team"] === teamName && row["Week"]) {
+            if (currentFilter.startsWith('phase_') && String(row["Phase"]) !== currentFilter.replace('phase_', '')) return;
 
-        if (cleanRow["Team"] === teamName && cleanRow["Week"]) {
-            if (currentFilter.startsWith('phase_') && String(cleanRow["Phase"]) !== currentFilter.replace('phase_', '')) return;
-
-            let w = cleanRow["Week"];
-            let member = cleanRow["Name"];
+            let w = row["Week"];
+            let member = row["Name"];
             if (!member) return;
             
             allWeeks.add(w);
@@ -729,7 +736,7 @@ function renderMemberChart(teamName) {
             if (!memberDataByWeek[member]) memberDataByWeek[member] = {};
             if (!memberDataByWeek[member][w]) memberDataByWeek[member][w] = { sum: 0, count: 0 };
             
-            memberDataByWeek[member][w].sum += (cleanRow["Average Weekly Step"] || 0);
+            memberDataByWeek[member][w].sum += (row["Average Weekly Step"] || 0);
             memberDataByWeek[member][w].count += 1;
         }
     });
@@ -762,9 +769,13 @@ function renderMemberChart(teamName) {
         };
     });
 
+    let container = document.getElementById('member-chart-container');
+    let canvas = document.getElementById('memberChart');
+    if (!container || !canvas) return;
+
     if (labels.length > 1) { 
-        document.getElementById('member-chart-container').style.display = 'block';
-        let ctx = document.getElementById('memberChart').getContext('2d');
+        container.style.display = 'block';
+        let ctx = canvas.getContext('2d');
 
         if (memberChartInstance) memberChartInstance.destroy();
 

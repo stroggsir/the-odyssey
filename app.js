@@ -25,6 +25,7 @@ function showPage(pageId, btnElement) {
 
 // 2. AUTO-LOAD THE CSV FILE (No clicking required!)
 window.onload = function() {
+    // Papa.parse will look for a file exactly named "Consolidated.csv" in the same folder
     Papa.parse("Consolidated.csv", {
         download: true,
         header: true,
@@ -89,7 +90,7 @@ function setupFilters() {
     });
 }
 
-// 4. Calculate Biggest Mover
+// 4. Calculate Biggest Mover (Friendly Text)
 function calculateBiggestMover() {
     let weeks = [...new Set(allData.map(r => r["Week"]).filter(w => w !== null && w !== undefined))].sort((a,b)=>b-a);
     if (weeks.length < 2) return; 

@@ -53,10 +53,16 @@ function setupFilters() {
     let weekMap = {};
 
     allData.forEach(row => {
-        if (row["Phase"] !== undefined && row["Phase"] !== null) phases.add(String(row["Phase"]));
-        if (row["Week"] !== undefined && row["Week"] !== null) {
-            let weekStr = String(row["Week"]);
-            let dateStr = row["Dates"] ? String(row["Dates"]) : "";
+        // Clean keys just in case
+        let cleanRow = {};
+        for(let key in row) {
+            cleanRow[key.trim()] = row[key];
+        }
+
+        if (cleanRow["Phase"] !== undefined && cleanRow["Phase"] !== null) phases.add(String(cleanRow["Phase"]));
+        if (cleanRow["Week"] !== undefined && cleanRow["Week"] !== null) {
+            let weekStr = String(cleanRow["Week"]);
+            let dateStr = cleanRow["Dates"] ? String(cleanRow["Dates"]) : "";
             weekMap[weekStr] = dateStr; 
         }
     });
@@ -92,7 +98,15 @@ function setupFilters() {
 
 // 4. Calculate Biggest Mover (Friendly Text)
 function calculateBiggestMover() {
-    let weeks = [...new Set(allData.map(r => r["Week"]).filter(w => w !== null && w !== undefined))].sort((a,b)=>b-a);
+    let weeks = [];
+    
+    allData.forEach(row => {
+        let cleanRow = {};
+        for(let key in row) cleanRow[key.trim()] = row[key];
+        if(cleanRow["Week"] !== null && cleanRow["Week"] !== undefined) weeks.push(cleanRow["Week"]);
+    });
+    
+    weeks = [...new Set(weeks)].sort((a,b)=>b-a);
     if (weeks.length < 2) return; 
 
     let latestWeek = weeks[0];
@@ -100,9 +114,12 @@ function calculateBiggestMover() {
     let teamWeeklyAvgs = {};
 
     allData.forEach(row => {
-        let w = row["Week"];
-        let t = row["Team"];
-        let s = row["Average Weekly Step"] || 0;
+        let cleanRow = {};
+        for(let key in row) cleanRow[key.trim()] = row[key];
+
+        let w = cleanRow["Week"];
+        let t = cleanRow["Team"];
+        let s = cleanRow["Average Weekly Step"] || 0;
         if (!t || (w !== latestWeek && w !== prevWeek)) return;
 
         if (!teamWeeklyAvgs[t]) teamWeeklyAvgs[t] = { latest: { sum: 0, count: 0 }, prev: { sum: 0, count: 0 } };
@@ -151,8 +168,11 @@ function calculateEpicJourney() {
     let uniqueWeeks = new Set();
 
     allData.forEach(row => {
-        totalSteps += (row["Average Weekly Step"] || 0);
-        if (row["Week"]) uniqueWeeks.add(row["Week"]);
+        let cleanRow = {};
+        for(let key in row) cleanRow[key.trim()] = row[key];
+
+        totalSteps += (cleanRow["Average Weekly Step"] || 0);
+        if (cleanRow["Week"]) uniqueWeeks.add(cleanRow["Week"]);
     });
 
     if (totalSteps === 0 || uniqueWeeks.size === 0) return;
@@ -276,17 +296,26 @@ function processData() {
     let opsTeamCounts = {};
 
     let filteredData = allData.filter(row => {
+        let cleanRow = {};
+        for(let key in row) cleanRow[key.trim()] = row[key];
+
         if (currentFilter === 'all') return true;
-        if (currentFilter.startsWith('phase_')) return String(row["Phase"]) === currentFilter.replace('phase_', '');
-        if (currentFilter.startsWith('week_')) return String(row["Week"]) === currentFilter.replace('week_', '');
+        if (currentFilter.startsWith('phase_')) return String(cleanRow["Phase"]) === currentFilter.replace('phase_', '');
+        if (currentFilter.startsWith('week_')) return String(cleanRow["Week"]) === currentFilter.replace('week_', '');
         return true;
     });
 
     filteredData.forEach(row => {
-        let team = row["Team"];
-        let member = row["Name"];
-        let steps = row["Average Weekly Step"] || 0;
-        let opsTeam = row["Ops Team"]; 
+        // Strip hidden spaces from headers before processing
+        let cleanRow = {};
+        for(let key in row) {
+            cleanRow[key.trim()] = row[key];
+        }
+
+        let team = cleanRow["Team"];
+        let member = cleanRow["Name"];
+        let steps = cleanRow["Average Weekly Step"] || 0;
+        let opsTeam = cleanRow["Ops Team"]; 
         
         if (!team || !member) return; 
 
@@ -302,7 +331,7 @@ function processData() {
         teamCounts[team] += 1;
         
         // Tally Ops Team Categories
-        if (opsTeam) {
+        if (opsTeam && String(opsTeam).trim() !== "") {
             if (!opsTeamTotals[opsTeam]) { opsTeamTotals[opsTeam] = 0; opsTeamCounts[opsTeam] = 0; }
             opsTeamTotals[opsTeam] += steps;
             opsTeamCounts[opsTeam] += 1;
@@ -432,14 +461,17 @@ function renderLeaderboardChart(top5Teams) {
     topTeamNames.forEach(name => teamDataByWeek[name] = {});
 
     allData.forEach(row => {
-        let team = row["Team"];
-        if (topTeamNames.includes(team) && row["Week"]) {
-            if (currentFilter.startsWith('phase_') && String(row["Phase"]) !== currentFilter.replace('phase_', '')) return;
+        let cleanRow = {};
+        for(let key in row) cleanRow[key.trim()] = row[key];
 
-            let w = row["Week"];
+        let team = cleanRow["Team"];
+        if (topTeamNames.includes(team) && cleanRow["Week"]) {
+            if (currentFilter.startsWith('phase_') && String(cleanRow["Phase"]) !== currentFilter.replace('phase_', '')) return;
+
+            let w = cleanRow["Week"];
             allWeeks.add(w);
             if (!teamDataByWeek[team][w]) teamDataByWeek[team][w] = { sum: 0, count: 0 };
-            teamDataByWeek[team][w].sum += (row["Average Weekly Step"] || 0);
+            teamDataByWeek[team][w].sum += (cleanRow["Average Weekly Step"] || 0);
             teamDataByWeek[team][w].count += 1;
         }
     });
@@ -527,20 +559,23 @@ function showTeamDeepDive(teamName) {
     let teamMembers = [];
     
     allData.forEach(row => {
-        let isRightTeam = row["Team"] === teamName;
+        let cleanRow = {};
+        for(let key in row) cleanRow[key.trim()] = row[key];
+
+        let isRightTeam = cleanRow["Team"] === teamName;
         let isRightTime = false;
         
         if (currentFilter === 'all') isRightTime = true;
-        else if (currentFilter.startsWith('phase_')) isRightTime = String(row["Phase"]) === currentFilter.replace('phase_', '');
-        else if (currentFilter.startsWith('week_')) isRightTime = String(row["Week"]) === currentFilter.replace('week_', '');
+        else if (currentFilter.startsWith('phase_')) isRightTime = String(cleanRow["Phase"]) === currentFilter.replace('phase_', '');
+        else if (currentFilter.startsWith('week_')) isRightTime = String(cleanRow["Week"]) === currentFilter.replace('week_', '');
         
         if (isRightTeam && isRightTime) {
-            let existing = teamMembers.find(m => m.name === row["Name"]);
+            let existing = teamMembers.find(m => m.name === cleanRow["Name"]);
             if (existing) {
-                existing.totalSteps += (row["Average Weekly Step"] || 0);
+                existing.totalSteps += (cleanRow["Average Weekly Step"] || 0);
                 existing.count += 1;
             } else {
-                teamMembers.push({ name: row["Name"], totalSteps: (row["Average Weekly Step"] || 0), count: 1 });
+                teamMembers.push({ name: cleanRow["Name"], totalSteps: (cleanRow["Average Weekly Step"] || 0), count: 1 });
             }
         }
     });
@@ -615,12 +650,15 @@ function renderDeepDiveChart(teamName) {
 
     let weekData = {};
     allData.forEach(row => {
-        if (row["Team"] === teamName && row["Week"]) {
-            if (currentFilter.startsWith('phase_') && String(row["Phase"]) !== currentFilter.replace('phase_', '')) return;
+        let cleanRow = {};
+        for(let key in row) cleanRow[key.trim()] = row[key];
 
-            let w = row["Week"];
+        if (cleanRow["Team"] === teamName && cleanRow["Week"]) {
+            if (currentFilter.startsWith('phase_') && String(cleanRow["Phase"]) !== currentFilter.replace('phase_', '')) return;
+
+            let w = cleanRow["Week"];
             if (!weekData[w]) weekData[w] = { sum: 0, count: 0 };
-            weekData[w].sum += (row["Average Weekly Step"] || 0);
+            weekData[w].sum += (cleanRow["Average Weekly Step"] || 0);
             weekData[w].count += 1;
         }
     });
@@ -674,11 +712,14 @@ function renderMemberChart(teamName) {
     let teamMembers = new Set();
 
     allData.forEach(row => {
-        if (row["Team"] === teamName && row["Week"]) {
-            if (currentFilter.startsWith('phase_') && String(row["Phase"]) !== currentFilter.replace('phase_', '')) return;
+        let cleanRow = {};
+        for(let key in row) cleanRow[key.trim()] = row[key];
 
-            let w = row["Week"];
-            let member = row["Name"];
+        if (cleanRow["Team"] === teamName && cleanRow["Week"]) {
+            if (currentFilter.startsWith('phase_') && String(cleanRow["Phase"]) !== currentFilter.replace('phase_', '')) return;
+
+            let w = cleanRow["Week"];
+            let member = cleanRow["Name"];
             if (!member) return;
             
             allWeeks.add(w);
@@ -687,7 +728,7 @@ function renderMemberChart(teamName) {
             if (!memberDataByWeek[member]) memberDataByWeek[member] = {};
             if (!memberDataByWeek[member][w]) memberDataByWeek[member][w] = { sum: 0, count: 0 };
             
-            memberDataByWeek[member][w].sum += (row["Average Weekly Step"] || 0);
+            memberDataByWeek[member][w].sum += (cleanRow["Average Weekly Step"] || 0);
             memberDataByWeek[member][w].count += 1;
         }
     });

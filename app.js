@@ -144,7 +144,7 @@ function calculateBiggestMover() {
     }
 }
 
-// 5. Calculate Epic Journey 
+// 5. Calculate Epic Journey (Visually Spaced)
 function calculateEpicJourney() {
     let totalSteps = 0;
     let uniqueWeeks = new Set();
@@ -161,7 +161,9 @@ function calculateEpicJourney() {
     let avgKmPerWeek = currentKm / weeksCompleted;
     let projectedFinalKm = avgKmPerWeek * 14; 
 
+    // Define all milestones (Manila added as starting point)
     const globalMilestones = [
+        { name: "Manila 🇵🇭", km: 0 },
         { name: "Cebu 🏝️", km: 570 },
         { name: "Bangkok 🐘", km: 2200 },
         { name: "Tokyo 🗼", km: 3000 },
@@ -171,47 +173,87 @@ function calculateEpicJourney() {
         { name: "Global RT 🌍", km: 40000 }
     ];
 
-    let finalTarget = globalMilestones[globalMilestones.length - 1]; 
+    let finalTarget = globalMilestones[globalMilestones.length - 1];
+    
+    // Calculate projected destination text
+    let projectedTarget = globalMilestones[globalMilestones.length - 1]; 
     for (let i = 0; i < globalMilestones.length; i++) {
         if (globalMilestones[i].km > projectedFinalKm) {
-            finalTarget = globalMilestones[i];
+            projectedTarget = globalMilestones[i];
             break;
         }
     }
 
-    let milestonesToDisplay = globalMilestones.filter(m => m.km < finalTarget.km);
-    let currentPercentage = Math.min((currentKm / finalTarget.km) * 100, 100);
-    
+    // --- SMART SEGMENT SCALING ---
+    let currentPercentage = 0;
+    let spacing = 100 / (globalMilestones.length - 1); // Spaces dots evenly (14.28% apart)
+
+    if (currentKm >= finalTarget.km) {
+        currentPercentage = 100;
+    } else {
+        // Find current leg of the journey
+        let currentIndex = 0;
+        for (let i = 0; i < globalMilestones.length - 1; i++) {
+            if (currentKm >= globalMilestones[i].km && currentKm < globalMilestones[i + 1].km) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        let prevM = globalMilestones[currentIndex];
+        let nextM = globalMilestones[currentIndex + 1];
+        
+        // Calculate progress inside this specific leg (0.0 to 1.0)
+        let segmentProgress = (currentKm - prevM.km) / (nextM.km - prevM.km);
+        
+        // Base % + Segment %
+        currentPercentage = (currentIndex * spacing) + (segmentProgress * spacing);
+    }
+
     let html = `
         <p style="font-size: 0.8rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;">🌍 The Grand Expedition</p>
-        <p style="color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem;">
-            At our current pace of <strong>${Math.round(avgKmPerWeek).toLocaleString()} km/week</strong>, we are projected to reach <strong>${finalTarget.name}</strong> by July 31!
+        <p style="color: var(--text-muted); margin-bottom: 36px; font-size: 0.95rem;">
+            At our current pace of <strong>${Math.round(avgKmPerWeek).toLocaleString()} km/week</strong>, we are projected to reach <strong>${projectedTarget.name}</strong> by July 31!
         </p>
 
-        <div style="position: relative; width: 100%; height: 28px; background: #e2e8f0; border-radius: var(--radius); overflow: hidden;">
-            <div style="width: ${currentPercentage}%; height: 100%; background: linear-gradient(90deg, #1e3a8a, var(--accent)); display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; color: white; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.5px; transition: width 1s ease-in-out;">
+        <div style="position: relative; width: 100%; height: 28px; background: #e2e8f0; border-radius: var(--radius); overflow: visible; margin-bottom: 30px;">
+            <div style="width: ${currentPercentage}%; height: 100%; background: linear-gradient(90deg, #1e3a8a, var(--accent)); border-radius: var(--radius); display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; color: white; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.5px; transition: width 1s ease-in-out;">
                 ${Math.round(currentKm).toLocaleString()} KM
             </div>
-        </div>
-
-        <div style="position: relative; width: 100%; height: 30px; margin-top: 8px;">
-            <span style="position: absolute; left: 0%; transform: translateX(-50%); font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Manila 🇵🇭</span>
     `;
 
-    milestonesToDisplay.forEach(m => {
-        let mPercent = (m.km / finalTarget.km) * 100;
-        let color = currentKm >= m.km ? 'var(--accent)' : '#cbd5e1'; 
+    globalMilestones.forEach((m, index) => {
+        let mPercent = index * spacing;
+        let isPassed = currentKm >= m.km;
+        let color = isPassed ? 'var(--accent)' : '#cbd5e1'; 
+        let textColor = isPassed ? 'var(--primary)' : '#94a3b8';
+        let fontWeight = isPassed ? '700' : '600';
         
+        // Stagger labels Top and Bottom to prevent overlapping
+        let isTop = index % 2 === 0; 
+        let verticalPos = isTop ? 'top: -32px;' : 'top: 36px;';
+        
+        let lineHtml = isTop 
+            ? `<div style="width: 2px; height: 10px; background: ${color}; margin: 0 auto 4px auto;"></div>` 
+            : `<div style="width: 2px; height: 10px; background: ${color}; margin: 4px auto 0 auto;"></div>`;
+
+        let labelHtml = `<span style="font-size: 0.7rem; font-weight: ${fontWeight}; color: ${textColor}; letter-spacing: 0.2px; white-space: nowrap;">${m.name}</span>`;
+
+        // Keep start and end labels from bleeding off the edge of the screen
+        let transform = 'translateX(-50%)';
+        let leftPos = `${mPercent}%`;
+        if (index === 0) { transform = 'translateX(0%)'; leftPos = '0%'; }
+        if (index === globalMilestones.length - 1) { transform = 'translateX(-100%)'; leftPos = '100%'; }
+
         html += `
-            <div style="position: absolute; left: ${mPercent}%; top: -42px; transform: translateX(-50%); text-align: center;">
-                <div style="width: 1px; height: 35px; background: ${color}; margin: 0 auto;"></div>
-                <span style="font-size: 0.7rem; font-weight: 700; color: ${color}; letter-spacing: 0.5px;">${m.name}</span>
+            <div style="position: absolute; left: ${leftPos}; ${verticalPos} transform: ${transform}; text-align: center; z-index: 10;">
+                ${isTop ? labelHtml + lineHtml : lineHtml + labelHtml}
             </div>
+            <div style="position: absolute; left: ${leftPos}; top: 50%; transform: translate(${index===0 ? '0' : (index===globalMilestones.length-1 ? '-100%' : '-50%')}, -50%); width: 10px; height: 10px; background: ${isPassed ? 'white' : '#f8fafc'}; border: 3px solid ${color}; border-radius: 50%; z-index: 11;"></div>
         `;
     });
 
     html += `
-            <span style="position: absolute; right: 0%; transform: translateX(50%); font-size: 0.75rem; font-weight: 700; color: var(--primary);">🎯 ${finalTarget.name} (${finalTarget.km.toLocaleString()} KM)</span>
         </div>
     `;
 

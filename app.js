@@ -25,8 +25,9 @@ function showPage(pageId, btnElement) {
 
 // 2. AUTO-LOAD THE CSV FILE (No clicking required!)
 window.onload = function() {
-    // Papa.parse will look for a file exactly named "Consolidated.csv" in the same folder
-    Papa.parse("Consolidated.csv", {
+    // The "?v=..." forces the browser to ALWAYS download the freshest CSV.
+    let freshUrl = "Consolidated.csv?v=" + new Date().getTime();
+    Papa.parse(freshUrl, {
         download: true,
         header: true,
         dynamicTyping: true,
